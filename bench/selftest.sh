@@ -28,5 +28,9 @@ awk -F'\t' 'NR>1 && $5!=0 {exit 1}' "$r" || { echo "FAIL: noop stub passed a tas
 r=$(mktemp -u)
 dry sleep "$r" TIMEOUT=2 TASKS=parse_duration
 awk -F'\t' 'NR==2 && ($5!=0 || $7!=124) {exit 1}' "$r" || { echo "FAIL: timeout row should have pass=0 status=124"; bad=1; }
+# Report: pass rate, median seconds, median tokens over passing rows that report tokens.
+f=$(mktemp)
+printf 'task\tcol\trun\tmode\tpass\tsecs\tstatus\tin_tok\tout_tok\nt\tC\t1\tno-loop\t1\t10\t0\t100\t50\nt\tC\t2\tno-loop\t0\t30\t0\t\t\nt\tC\t3\tno-loop\t1\t20\t0\t300\t150\n' >"$f"
+./report.sh "$f" | grep -qF '| C | no-loop | 3 | 2/3 (66%) | 20 | 300 |' || { echo "FAIL: report row mismatch"; bad=1; }
 [ "$bad" = 0 ] && echo "selftest ok"
 exit "$bad"
