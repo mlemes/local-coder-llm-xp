@@ -1,0 +1,12 @@
+[Unit]
+Description=Local coder LLM (llama-server)
+After=network.target
+
+[Service]
+ExecStart=@ROOT@/scripts/run.sh
+Restart=on-failure
+MemoryMax=24G
+MemorySwapMax=0
+
+[Install]
+WantedBy=default.target
