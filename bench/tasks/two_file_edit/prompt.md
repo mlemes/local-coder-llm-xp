@@ -1,0 +1,1 @@
+In `geometry.py`, define `Rect = namedtuple("Rect", "w h")` and change `area(w, h)` to `area(rect)`, which returns `rect.w * rect.h`. Update `report.py` so `summary(dims)` still accepts a list of `(width, height)` pairs and returns the same strings as before.

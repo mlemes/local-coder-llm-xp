@@ -1,0 +1,1 @@
+Rename the function `get_usr_nm` to `get_user_name` everywhere in this project: its definition, every call, every import, and every mention in comments. Behavior must not change. Running `python3 main.py` must print the same output as before.
