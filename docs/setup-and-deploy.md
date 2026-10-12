@@ -114,7 +114,8 @@ The `local-coder` subagent lets your normal Claude Code session hand coding task
 
 - `--bare` skips hooks, plugins, and `CLAUDE.md`, which keeps the prompt small for the 64K context.
 - A short system prompt names the working directory, sets rules for exact-match edits, minimal diffs, and style matching, and asks for code changes only.
-- Only the `Read`, `Edit`, `Write`, `Glob`, and `Grep` tools are available. It cannot run commands, so you verify its output.
+- Only the `Read`, `Edit`, `Write`, `Glob`, and `Grep` tools are available. The model cannot run commands.
+- With `--test "<cmd>"`, the wrapper runs the test command after each edit and sends any failure back to the model. When the same test fails 3 times, Gemini (`agy -p --mode plan`, no edits) diagnoses the cause, and the next attempt gets that diagnosis. The wrapper stops when the tests pass or after `--max` attempts (default 8). You still verify the result.
 
 Install it:
 
@@ -123,7 +124,7 @@ install -m 755 scripts/claude-local-code.sh ~/.local/bin/claude-local-code
 install -m 644 clients/agents/local-coder.md ~/.claude/agents/local-coder.md
 ```
 
-Ask Claude Code to use the `local-coder` agent, or run `claude-local-code "task"` from a repository root.
+Ask Claude Code to use the `local-coder` agent, or run `claude-local-code [--test "<cmd>"] "task"` from a repository root.
 
 ### Start after reboot and login with a removable model drive
 
@@ -156,6 +157,6 @@ To roll back, restore the previous values and repeat the steps.
 ## Troubleshoot
 
 - **`CUDA error: out of memory`:** raise `N_CPU_MOE` by 2, or lower `CTX_SIZE` to 32768.
-- **Service killed by the OOM killer:** the 24 GB `MemoryMax` cap was hit. Lower `CTX_SIZE` or use a smaller quantization.
+- **Service killed by the OOM killer:** the 24 GB `MemoryMax` cap was hit. The model takes about 17.7 GB resident, and llama.cpp's host prompt cache defaults to 8 GB, so `run.sh` caps it with `--cache-ram 2048`. If it still happens, lower `CTX_SIZE` or use a smaller quantization.
 - **The agent never calls tools:** confirm `--jinja` is in the unit and the model file is an Instruct build.
 - **Logs:** run `journalctl --user -u local-coder -f`.

@@ -38,7 +38,7 @@ Agentic clients send long system prompts and tool output, so the service targets
 
 The server uses a 128-token physical prompt-processing batch (`-ub 128`) to limit compute buffer memory, with six inference threads and CUDA graphs enabled.
 
-The server runs one slot (`--parallel 1`). One agent session gets the full context and prompt cache.
+The server runs one slot (`--parallel 1`). One agent session gets the full context and prompt cache. The host prompt cache is capped at 2 GB (`--cache-ram 2048`) to stay under `MemoryMax`; the 8 GB default caused an OOM kill on 2026-10-12.
 
 ## Model alternatives
 
