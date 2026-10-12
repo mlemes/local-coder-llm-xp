@@ -15,13 +15,13 @@ status="$(curl -fs "$BASE/health" | jq -r '.status')" || fail "health request"
 echo "ok: health"
 
 content="$(curl -fs "$BASE/v1/chat/completions" "${AUTH[@]}" \
-  -d "{\"model\":\"$MODEL_ALIAS\",\"max_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":\"Say hello.\"}]}" \
+  -d "{\"model\":\"$MODEL_ALIAS\",\"max_tokens\":64,\"chat_template_kwargs\":{\"enable_thinking\":false},\"messages\":[{\"role\":\"user\",\"content\":\"Say hello.\"}]}" \
   | jq -r '.choices[0].message.content // empty')" || fail "chat request"
 [ -n "$content" ] || fail "empty chat content"
 echo "ok: chat"
 
 tool="$(curl -fs "$BASE/v1/chat/completions" "${AUTH[@]}" -d "{
-  \"model\":\"$MODEL_ALIAS\",\"max_tokens\":256,
+  \"model\":\"$MODEL_ALIAS\",\"max_tokens\":256,\"chat_template_kwargs\":{\"enable_thinking\":false},
   \"messages\":[{\"role\":\"user\",\"content\":\"Read README.md\"}],
   \"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"read_file\",
     \"description\":\"Read a file from disk\",

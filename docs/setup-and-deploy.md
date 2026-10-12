@@ -93,6 +93,44 @@ The test checks `/health`, sends one chat request, and sends one request with a 
 
 Copy `clients/opencode.json` to `~/.config/opencode/opencode.json`, then set `LOCAL_CODER_API_KEY` in your shell.
 
+### Separate Claude Code cloud and local commands
+
+`claude` uses the existing claude.ai login and cloud model settings. `claude-local` uses local Qwen through the server's Anthropic-compatible `/v1/messages` endpoint.
+
+Install the local launcher and its separate settings file:
+
+```bash
+install -m 755 scripts/claude-local.sh ~/.local/bin/claude-local
+install -m 600 clients/claude-local.json ~/.config/local-coder-claude.json
+```
+
+Run `claude-local` from your project. It reads the API key from `~/.config/local-coder.env`, starts the service, waits for health, and launches Claude Code with the local endpoint and configured context window. Its `--settings` file adds “Qwen3.6 Local” to the picker only for the local launch. Endpoint and credentials apply only to that process, so ordinary `claude` retains its cloud configuration and claude.ai connectors.
+
+Local sessions show a warning that claude.ai connectors are disabled because local credentials take precedence. That warning is expected for `claude-local`. Do not put the local endpoint, local apiKeyHelper, or Qwen default in global `~/.claude/settings.json` when using these separate commands. Each launch has one endpoint; switching local and cloud models within one session requires a routing gateway. [Claude Code custom model documentation](https://code.claude.com/docs/en/model-config#add-a-custom-model-option).
+
+### Run code-only subagents from Claude Code
+
+The `local-coder` subagent lets your normal Claude Code session hand coding tasks to the local model. It runs `claude-local-code`, a headless Claude Code run with these limits:
+
+- `--bare` skips hooks, plugins, and `CLAUDE.md`, which keeps the prompt small for the 64K context.
+- A short system prompt names the working directory and asks for code changes only.
+- Only the `Read`, `Edit`, `Write`, `Glob`, and `Grep` tools are available. It cannot run commands, so you verify its output.
+
+Install it:
+
+```bash
+install -m 755 scripts/claude-local-code.sh ~/.local/bin/claude-local-code
+install -m 644 clients/agents/local-coder.md ~/.claude/agents/local-coder.md
+```
+
+Ask Claude Code to use the `local-coder` agent, or run `claude-local-code "task"` from a repository root.
+
+### Start after reboot and login with a removable model drive
+
+The enabled user service starts when you log in. If the model lives on a removable drive, set `MODEL_DRIVE_UUID` in the private environment file. Obtain it with `lsblk -f`. Optionally set `MODEL_DRIVE_RELATIVE_PATH` to the model file relative to the drive root; the default is `local-coder-llm/models/$MODEL_FILE`.
+
+The runner resolves the mount by UUID, asks `udisksctl` to mount it when needed, and reads the model directly from the resulting mount point. This handles a changed mount path after reboot without relying on a repository symlink. The service retries every ten seconds if the drive is not ready. User-session mounting requires the drive to be connected and the desktop session to authorize UDisks mounting. Startup before login still requires administrator-configured drive mounting and lingering; this installation uses startup after login.
+
 ### Codex CLI
 
 Add a provider to `~/.codex/config.toml`:

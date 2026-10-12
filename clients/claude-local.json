@@ -1,0 +1,8 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "env": {
+    "ANTHROPIC_CUSTOM_MODEL_OPTION": "qwen3.6-35b-a3b",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Qwen3.6 Local",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Local 35B model · 64K context"
+  }
+}

@@ -13,7 +13,7 @@ This service exposes one OpenAI-compatible HTTP endpoint on `127.0.0.1:8080`. Ag
 ## Components
 
 - **Inference server:** `llama-server` from [llama.cpp](https://github.com/ggml-org/llama.cpp), built from source with CUDA. It serves `/v1/chat/completions` with tool calling through the model's Jinja chat template (`--jinja`).
-- **Model:** Qwen3.6-35B-A3B, GGUF, `UD-Q4_K_M` (about 22.1 GB), stored on SSD32. It is a mixture-of-experts (MoE) model with about 3B active parameters per token, which keeps CPU-side decoding fast.
+- **Model:** Qwen3.6-35B-A3B, GGUF, `UD-Q4_K_M` (about 22.1 GB), stored on an external drive resolved through `MODEL_DRIVE_UUID`. It is a mixture-of-experts (MoE) model with about 3B active parameters per token, which keeps CPU-side decoding fast.
 - **Process manager:** a systemd user unit, `local-coder.service`. It restarts the server on failure and caps memory.
 - **Clients:** any agent that speaks the OpenAI Chat Completions API with tools. The repository ships a sample OpenCode config.
 
