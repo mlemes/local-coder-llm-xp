@@ -113,7 +113,7 @@ Local sessions show a warning that claude.ai connectors are disabled because loc
 The `local-coder` subagent lets your normal Claude Code session hand coding tasks to the local model. It runs `claude-local-code`, a headless Claude Code run with these limits:
 
 - `--bare` skips hooks, plugins, and `CLAUDE.md`, which keeps the prompt small for the 64K context.
-- A short system prompt names the working directory and asks for code changes only.
+- A short system prompt names the working directory, sets rules for exact-match edits, minimal diffs, and style matching, and asks for code changes only.
 - Only the `Read`, `Edit`, `Write`, `Glob`, and `Grep` tools are available. It cannot run commands, so you verify its output.
 
 Install it:
