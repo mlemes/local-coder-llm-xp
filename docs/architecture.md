@@ -13,7 +13,7 @@ This service exposes one OpenAI-compatible HTTP endpoint on `127.0.0.1:8080`. Ag
 ## Components
 
 - **Inference server:** `llama-server` from [llama.cpp](https://github.com/ggml-org/llama.cpp), built from source with CUDA. It serves `/v1/chat/completions` with tool calling through the model's Jinja chat template (`--jinja`).
-- **Model:** Qwen3-Coder-30B-A3B-Instruct, GGUF, `Q4_K_M` (about 18.6 GB). It is a mixture-of-experts (MoE) model with about 3B active parameters per token, which keeps CPU-side decoding fast.
+- **Model:** Qwen3.6-35B-A3B, GGUF, `UD-Q4_K_M` (about 22.1 GB), stored on SSD32. It is a mixture-of-experts (MoE) model with about 3B active parameters per token, which keeps CPU-side decoding fast.
 - **Process manager:** a systemd user unit, `local-coder.service`. It restarts the server on failure and caps memory.
 - **Clients:** any agent that speaks the OpenAI Chat Completions API with tools. The repository ships a sample OpenCode config.
 
@@ -24,7 +24,7 @@ This service exposes one OpenAI-compatible HTTP endpoint on `127.0.0.1:8080`. Ag
 - **GPU:** attention, shared weights, router weights, the KV cache, and the expert weights of the first layers.
 - **CPU RAM:** the expert (FFN) weights of the remaining layers, selected with `--n-cpu-moe N`.
 
-You tune `N` once. Start high (all 48 layers on CPU), then lower it until VRAM use reaches about 7.5 GB.
+You tune `N` once. Start high (all 40 layers on CPU), then lower it until VRAM use reaches about 7.5 GB.
 
 ## Context and KV cache
 
@@ -36,14 +36,17 @@ Agentic clients send long system prompts and tool output, so the service targets
 2. `llama-server` applies the chat template, reuses the cached prompt prefix, and generates.
 3. The server returns tool calls in OpenAI format. The agent runs the tools locally and sends the results back.
 
+The server uses a 128-token physical prompt-processing batch (`-ub 128`) to limit compute buffer memory, with six inference threads and CUDA graphs enabled.
+
 The server runs one slot (`--parallel 1`). One agent session gets the full context and prompt cache.
 
 ## Model alternatives
 
 | Model | When to use |
 | --- | --- |
-| Qwen3-Coder-30B-A3B-Instruct `Q4_K_M` | Default. Best speed for agent loops. |
-| Qwen3.6-35B-A3B `Q4_K_M` | Stronger general reasoning. Needs a higher `--n-cpu-moe` value and fits only close to the 24 GB cap. |
+| Qwen3-Coder-30B-A3B-Instruct `Q4_K_M` | Archived on HDD1; measured about 24.5 tok/s. |
+| Qwen3.6-35B-A3B `UD-Q4_K_M` | Default; fastest tested code generation here, about 35–41 tok/s; 36 expert layers on CPU. |
+| Qwen3.8-27B `UD-Q4_K_M` | Fits with CPU offload; see measured baseline and MTP tuning in the comparison. |
 | Qwen2.5-Coder-7B-Instruct `Q4_K_M` | Fully on GPU. Use it if RAM is needed for other work. Weaker at tool use. |
 
 Benchmark each model on your own tasks before you switch. Public speed figures for 8 GB setups come from single community reports.
@@ -54,6 +57,8 @@ The server binds to `127.0.0.1` and requires an API key (`--api-key`). It does n
 
 ## Measured performance
 
+The figures below describe the previous Qwen3-Coder default. The current Qwen3.6 measurements are in [model comparison](model-comparison.md).
+
 End-to-end check: OpenCode `run` against the service added a Python function and a unittest in a scratch repo, then ran the test (it passed). Figures come from llama-server timings in `journalctl --user -u local-coder`.
 
 | Metric | Value |
@@ -61,3 +66,5 @@ End-to-end check: OpenCode `run` against the service added a Python function and
 | Decode speed | about 24.5 tok/s (24.3 to 24.7 over 100 to 178 token replies) |
 | Prompt processing | about 402 tok/s (cold 11,748 token prompt; small cached follow-ups are lower) |
 | Peak RAM (`MemoryPeak`) | 22,539,694,080 bytes (about 21.0 GiB, under the 24 GB cap) |
+
+Newer local model tests and optimization measurements: [model comparison](model-comparison.md).

@@ -105,7 +105,7 @@ env_key = "LOCAL_CODER_API_KEY"
 wire_api = "chat"
 ```
 
-Run `codex --config model_provider=local --model qwen3-coder`.
+Run `codex --config model_provider=local --model qwen3.6-35b-a3b`.
 
 ## Update or roll back
 

@@ -13,6 +13,7 @@ fi
 exec "$ROOT/vendor/llama.cpp/build/bin/llama-server" \
   -m "$ROOT/models/$MODEL_FILE" --alias "$MODEL_ALIAS" --host "$HOST" --port "$PORT" \
   --api-key "$API_KEY" --jinja -ngl 99 --n-cpu-moe "$N_CPU_MOE" \
-  -c "$CTX_SIZE" -fa on --cache-type-k q8_0 --cache-type-v q8_0 \
+  -c "$CTX_SIZE" -ub 128 -fa on --cache-type-k q8_0 --cache-type-v q8_0 \
   --parallel 1 --threads "$THREADS" -lm none \
-  --temp 0.7 --top-p 0.8 --top-k 20 --repeat-penalty 1.05
+  --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --repeat-penalty 1.0 \
+  --reasoning-budget 2048
