@@ -83,7 +83,7 @@ Columns A and B run the wrapper twice per task:
 - Attempt 1 without `--test`. This measures the harness without the loop.
 - A full run with `--test "<check>"`. This measures the harness with the loop.
 
-The `--test` command for the loop is a visible copy of the check, because the wrapper needs a command to run. The runner always re-runs the hidden check afterward and scores that result.
+The `--test` command for the loop is the real `check.sh`. The wrapper shows the agent only the filtered failure lines. The runner re-runs the check afterward and scores that result.
 
 ## Adapter contract
 
@@ -97,6 +97,7 @@ adapters/<name>.sh <prompt-file> <workdir> <usage-out-file>
 - It writes `input_tokens`, `output_tokens`, and `cost_usd` to `<usage-out-file>` as `key=value` lines, for each value the harness reports. It leaves a value out when the harness does not report it.
 - It exits non-zero only when the harness crashes. A failed task is not a crash.
 - Backend selection for the Qwen columns uses the existing environment from `~/.config/local-coder.env` (`HOST`, `PORT`, `API_KEY`, `MODEL_ALIAS`).
+- The runner also sets `BACKEND` (`haiku` or `local`), `MODE` (`no-loop` or `loop`), and `TEST_CMD` in the adapter's environment.
 
 ## Model lifecycle
 
@@ -130,7 +131,7 @@ The report in `docs/harness-comparison.md` shows, per column:
 - Pass rate on the first attempt (no loop) and final pass rate (with loop). Only columns A and B have a loop.
 - Median wall time.
 - Median tokens per passing run.
-- Cost per passing run, for column A only. Local runs cost no API money.
+- Weekly quota used by column A, from the 7-day utilization before and after the column. The wrapper prints plain text, so it exposes no per-run cost. Local runs cost no API money.
 
 The report ends with a recommendation and states which numbers a harness did not report.
 
@@ -139,7 +140,7 @@ The report ends with a recommendation and states which numbers a harness did not
 - A harness crash or a timeout counts as a failed run. The row keeps the exit status.
 - The per-run timeout is 15 minutes. The runner kills the process group when it expires.
 - A missing tool in `bench/.tools/` stops the runner before any run starts, with the install command.
-- If a harness cannot reach the endpoint, the runner stops that column and marks the remaining rows `skipped`.
+- If the local model never becomes ready, the runner prints the journal and exits. It does not mark rows `skipped`.
 
 ## Testing the runner
 
@@ -149,7 +150,7 @@ The report ends with a recommendation and states which numbers a harness did not
 
 ## Risks and open items
 
-- Qwen Code and OpenCode flags for headless runs, endpoint configuration, and token reporting are not verified yet. The plan's first task confirms them from the projects' own documentation and a one-prompt smoke run.
+- Qwen Code and OpenCode headless flags: the smoke run (plan task 4) confirmed OpenCode 1.19.0 with `run --auto` and Qwen Code 0.25.1 with `--yolo` and a positional prompt. Neither prints token usage by default, so the token columns stay blank.
 - Token and cost fields may be blank for some harnesses. The report states which ones.
 - Three runs per cell is a small sample. The report shows per-run results next to medians, and it does not claim statistical significance.
 - Results describe five small tasks. They do not establish a general ranking.
