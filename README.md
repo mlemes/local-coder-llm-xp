@@ -7,3 +7,4 @@ Run a local LLM service for agentic coding on one machine with an 8 GB GPU and u
 - Implementation plan: [`docs/plan.md`](docs/plan.md)
 
 - Local model tests and code generation tuning: [`docs/model-comparison.md`](docs/model-comparison.md)
+- Harness benchmark: [`docs/harness-comparison.md`](docs/harness-comparison.md), run with `bench/run.sh`

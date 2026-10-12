@@ -51,6 +51,18 @@ The server runs one slot (`--parallel 1`). One agent session gets the full conte
 
 Benchmark each model on your own tasks before you switch. Public speed figures for 8 GB setups come from single community reports.
 
+## Harness benchmark
+
+`bench/` compares coding agent harnesses on the same tasks. It is a set of shell scripts with no service of its own.
+
+- **Runner (`bench/run.sh`):** loops over tasks, columns, and runs. It owns the model lifecycle: it starts `local-coder.service` only for the local columns and stops it on exit, but only if it started it.
+- **Adapters (`bench/adapters/`):** one script per harness. Each runs the harness headless in a temp workdir. The adapter never scores a run.
+- **Tasks (`bench/tasks/`):** a prompt, a starter tree, a known-good solution, and a hidden `check.sh`. The runner runs the check after the adapter finishes. It never copies the check into the workdir.
+- **Report (`bench/report.sh`):** reads `bench/results.tsv` and prints a markdown table.
+- **Trust boundary:** the agent sees the prompt and its workdir. It does not see `check.sh`, although a harness with a shell tool could search the filesystem for it.
+
+Columns: A is `claude-local-code` on Haiku (production baseline). B, C, and D run `claude-local-code`, OpenCode, and Qwen Code on the local Qwen3.6 server. Results are in [harness comparison](harness-comparison.md).
+
 ## Security
 
 The server binds to `127.0.0.1` and requires an API key (`--api-key`). It does not listen on the network. Remote access, if needed later, goes through an SSH tunnel.
