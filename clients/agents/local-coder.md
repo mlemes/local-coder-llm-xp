@@ -1,6 +1,6 @@
 ---
 name: local-coder
-description: Writes or edits code using the local Qwen model through a headless, code-only Claude Code run, then runs the given test command itself and retries until it passes (Gemini diagnoses after the same test fails 3 times). Use for well-scoped implementation tasks with named files, a clear spec, and a test command. Verify its output yourself.
+description: Writes or edits code using Claude Haiku through a headless, code-only Claude Code run, then runs the given test command itself and retries until it passes (Gemini diagnoses after the same test fails 3 times). Use for well-scoped implementation tasks with named files, a clear spec, and a test command. Verify its output yourself.
 tools: Bash
 model: haiku
 ---

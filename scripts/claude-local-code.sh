@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Headless, code-only Claude Code run on the local model.
+# Headless, code-only Claude Code run on Claude Haiku (CODER_MODEL overrides; the local Qwen model was too slow and unreliable).
 # Usage: claude-local-code [--test "cmd"] [--max N] "task"   (or task on stdin)
 # With --test, the wrapper runs the test command after each edit and sends the failure back to the model.
 # When the same test fails 3 times, Gemini (agy, plan mode: no edits) diagnoses the cause, and the
@@ -26,7 +26,7 @@ Rules:
 7. If the spec is ambiguous, take the simplest reading and say so in the reply.
 8. Do not re-read a file after a successful edit. Stop once the change is complete.
 Reply with one line per changed file, path: what changed. Add one line per assumption, if any."
-run() { claude-local -p "$1" --bare --system-prompt "$SYSTEM" --tools Read Edit Write Glob Grep --permission-mode acceptEdits --max-turns 30 </dev/null; }
+run() { claude --model "${CODER_MODEL:-haiku}" -p "$1" --setting-sources "" --strict-mcp-config --system-prompt "$SYSTEM" --tools Read Edit Write Glob Grep --permission-mode acceptEdits --max-turns 30 </dev/null; }
 
 [ -z "$test_cmd" ] && { run "$task"; exit; }
 

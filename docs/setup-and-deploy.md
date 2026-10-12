@@ -110,9 +110,9 @@ Local sessions show a warning that claude.ai connectors are disabled because loc
 
 ### Run code-only subagents from Claude Code
 
-The `local-coder` subagent lets your normal Claude Code session hand coding tasks to the local model. It runs `claude-local-code`, a headless Claude Code run with these limits:
+The `local-coder` subagent lets your normal Claude Code session hand coding tasks to a cheap model. It runs `claude-local-code`, a headless Claude Code run on Claude Haiku (set `CODER_MODEL` to change it; since 2026-10-12 it no longer uses the local Qwen model, which took about 40 minutes per attempt) with these limits:
 
-- `--bare` skips hooks, plugins, and `CLAUDE.md`, which keeps the prompt small for the 64K context.
+- `--setting-sources ""` and `--strict-mcp-config` skip settings, hooks, plugins, and MCP servers, which keeps the prompt small.
 - A short system prompt names the working directory, sets rules for exact-match edits, minimal diffs, and style matching, and asks for code changes only.
 - Only the `Read`, `Edit`, `Write`, `Glob`, and `Grep` tools are available. The model cannot run commands.
 - With `--test "<cmd>"`, the wrapper runs the test command after each edit and sends any failure back to the model. When the same test fails 3 times, Gemini (`agy -p --mode plan`, no edits) diagnoses the cause, and the next attempt gets that diagnosis. The wrapper stops when the tests pass or after `--max` attempts (default 8). You still verify the result.
