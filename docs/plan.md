@@ -52,20 +52,20 @@ The sampling values are the model card defaults. The script exits with an error 
 
 Check: `bash -n scripts/run.sh` and `shellcheck scripts/*.sh` pass.
 
-## Task 5: Write the tuner
+## Task 5: Write the tuner (done)
 
 Write `scripts/tune.sh`. For `N` from 48 down to 0 in steps of 4, it starts `run.sh` with `N_CPU_MOE=N` and a test port, waits for `/health`, reads free VRAM with `nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits`, then stops the server. It prints the lowest `N` that loads and leaves at least 500 MB free, plus decode speed from one 200-token request (`timings.predicted_per_second` in the response).
 
 Check: it prints one `N_CPU_MOE=` line.
 
-## Task 6: Add the systemd unit
+## Task 6: Add the systemd unit (done)
 
 1. Write `systemd/local-coder.service` as a user unit. Set `ExecStart` to the absolute path of `scripts/run.sh` (the installer fills it in), `Restart=on-failure`, `MemoryMax=24G`, and `MemorySwapMax=0`.
 1. Write `scripts/install-service.sh`. It renders the unit into `~/.config/systemd/user/`, runs `systemctl --user daemon-reload`, and runs `systemctl --user enable --now local-coder`.
 
 Check: `systemd-analyze --user verify ~/.config/systemd/user/local-coder.service` passes.
 
-## Task 7: Add the smoke test
+## Task 7: Add the smoke test (done)
 
 Write `scripts/smoke-test.sh`. With `curl` and `jq`, it:
 
@@ -77,13 +77,13 @@ It exits non-zero on any failure.
 
 Check: the script passes against the running service.
 
-## Task 8: Add the client config
+## Task 8: Add the client config (done)
 
 Write `clients/opencode.json` with one provider using `@ai-sdk/openai-compatible`, `baseURL` `http://127.0.0.1:8080/v1`, the API key from `{env:LOCAL_CODER_API_KEY}`, and model `qwen3-coder` with a 65536 context limit.
 
 Check: `jq . clients/opencode.json` succeeds.
 
-## Task 9: Run an end-to-end agent check
+## Task 9: Run an end-to-end agent check (done)
 
 Run OpenCode against the service in a scratch repository. Ask it to add a function and a test, then run the test. Record decode speed, prompt processing speed, and peak RAM (`systemctl --user show local-coder -p MemoryPeak`) in `docs/architecture.md` under a new "Measured performance" section.
 

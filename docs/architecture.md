@@ -51,3 +51,13 @@ Benchmark each model on your own tasks before you switch. Public speed figures f
 ## Security
 
 The server binds to `127.0.0.1` and requires an API key (`--api-key`). It does not listen on the network. Remote access, if needed later, goes through an SSH tunnel.
+
+## Measured performance
+
+End-to-end check: OpenCode `run` against the service added a Python function and a unittest in a scratch repo, then ran the test (it passed). Figures come from llama-server timings in `journalctl --user -u local-coder`.
+
+| Metric | Value |
+| --- | --- |
+| Decode speed | about 24.5 tok/s (24.3 to 24.7 over 100 to 178 token replies) |
+| Prompt processing | about 402 tok/s (cold 11,748 token prompt; small cached follow-ups are lower) |
+| Peak RAM (`MemoryPeak`) | 22,539,694,080 bytes (about 21.0 GiB, under the 24 GB cap) |
