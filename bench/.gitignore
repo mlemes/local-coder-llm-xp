@@ -1,4 +1,4 @@
 .tools/
 results.tsv
 logs/
-bench/.home/
+.home/

@@ -35,8 +35,8 @@ prompt="$task" log=""
 for ((i = 1; i <= max; i++)); do
   run "$prompt" || echo "attempt $i: model run ended with an error" >&2
   if out=$(bash -c "$test_cmd" 2>&1); then echo "tests pass (attempt $i): $test_cmd"; exit 0; fi
-  log=$(printf '%s\n' "$out" | grep -E '✖|not ok|FAIL|Error|assert|expected|actual|\+ |- ' | head -60)
-  names=$(printf '%s\n' "$out" | grep -E '^\s*(✖|not ok)' | sed -E 's/^\s*(✖|not ok [0-9]+ -)\s*//; s/\s*\([0-9.]+ms\)$//' | sort -u)
+  log=$(printf '%s\n' "$out" | grep -E '✖|not ok|FAIL|Error|assert|expected|actual|\+ |- ' | head -60 || true)
+  names=$(printf '%s\n' "$out" | grep -E '^\s*(✖|not ok)' | sed -E 's/^\s*(✖|not ok [0-9]+ -)\s*//; s/\s*\([0-9.]+ms\)$//' | sort -u || true)
   hint=""
   while IFS= read -r n; do
     [ -n "$n" ] || continue
