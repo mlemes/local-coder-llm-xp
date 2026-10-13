@@ -2,3 +2,4 @@
 results.tsv
 logs/
 .home/
+.keys.env

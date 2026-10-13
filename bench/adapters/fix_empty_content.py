@@ -1,10 +1,12 @@
 """Bench-only proxy for column F. dcode talks the Responses API. llama-server maps empty
 reasoning items and empty tool output to empty chat content, which its template rejects.
-This drops empty reasoning items and replaces empty content or output with a space. usage: fix_empty_content.py <listen-port> <upstream-port>"""
+This drops empty reasoning items and replaces empty content or output with a space. usage: fix_empty_content.py <listen-port> <upstream-port | https://host>
+It also renames max_tokens to max_completion_tokens and sets reasoning_effort none when tools are present,
+which the OpenAI chat completions endpoint requires for gpt-6-luna."""
 import http.client, json, sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-LISTEN, UP = int(sys.argv[1]), int(sys.argv[2])
+LISTEN, UP = int(sys.argv[1]), sys.argv[2]
 
 
 class H(BaseHTTPRequestHandler):
@@ -12,6 +14,10 @@ class H(BaseHTTPRequestHandler):
         body = self.rfile.read(int(self.headers["Content-Length"]))
         try:
             d = json.loads(body)
+            if "max_tokens" in d and UP.startswith("https://"):
+                d["max_completion_tokens"] = d.pop("max_tokens")
+            if d.get("tools") and UP.startswith("https://") and "/chat/completions" in self.path:
+                d["reasoning_effort"] = "none"  # chat completions with tools allows no reasoning on gpt-6-luna
             for m in d.get("messages", []):
                 if m.get("content") in ("", None, []):
                     m["content"] = " "
@@ -28,7 +34,7 @@ class H(BaseHTTPRequestHandler):
             body = json.dumps(d).encode()
         except ValueError:
             pass
-        c = http.client.HTTPConnection("127.0.0.1", UP, timeout=900)
+        c = http.client.HTTPSConnection(UP[8:], timeout=900) if UP.startswith("https://") else http.client.HTTPConnection("127.0.0.1", int(UP), timeout=900)
         c.request("POST", self.path, body, {k: v for k, v in self.headers.items() if k.lower() not in ("content-length", "host")} | {"Content-Length": str(len(body))})
         r = c.getresponse()
         self.send_response(r.status)

@@ -7,6 +7,12 @@ prompt=$1 work=$2 usage=$3
 bench=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck disable=SC1091
 source "$HOME/.config/local-coder.env"
+source "$bench/adapters/_remote.sh"
+if [ -n "$PROV_NAME" ]; then
+  export HOME="$bench/.home/deepagents" "$KEYVAR=$PROV_KEY"
+  cd "$work"
+  exec "$HOME/.local/bin/dcode" -n "$(cat "$prompt")" --model "$PROV_NAME:$PROV_MODEL" </dev/null
+fi
 # llama-server rejects empty message content that dcode sends after tool calls; proxy fixes it.
 pport=$((PORT + 1))
 python3 -I "$bench/adapters/fix_empty_content.py" "$pport" "$PORT" &

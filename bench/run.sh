@@ -15,9 +15,10 @@ TASKS=${TASKS:-$(ls tasks)}
 mkdir -p "$LOGDIR"
 [ -s "$RESULTS" ] || printf 'task\tcol\trun\tmode\tpass\tsecs\tstatus\tin_tok\tout_tok\n' >"$RESULTS"
 
-adapter_for() { case $1 in A | B) echo claude-local-code ;; C) echo opencode ;; D) echo qwen-code ;; E) echo dsh ;; F) echo deepagents ;; G) echo hermes ;; H) echo openclaw ;; esac; }
-backend_for() { if [ "$1" = A ]; then echo haiku; else echo local; fi; }
-modes_for() { case $1 in A | B) echo "no-loop loop" ;; *) echo no-loop ;; esac; }
+# A column is a harness letter, optionally with a model: "C@luna", "C@haiku". No suffix means the default model.
+adapter_for() { case ${1%@*} in A | B) echo claude-local-code ;; C) echo opencode ;; D) echo qwen-code ;; E) echo dsh ;; F) echo deepagents ;; G) echo hermes ;; H) echo openclaw ;; I) echo codex ;; esac; }
+backend_for() { case $1 in *@*) echo "${1#*@}" ;; A) echo haiku ;; I) echo luna ;; *) echo local ;; esac; }
+modes_for() { case ${1%@*} in A | B) echo "no-loop loop" ;; *) echo no-loop ;; esac; }
 
 # Claude 7-day quota utilization (fraction), from a one-word headless call.
 weekly_util() {
@@ -74,7 +75,7 @@ run_one() { # task col run mode
 }
 
 for c in $COLS; do
-  case $c in
+  case ${c%@*} in
     C) need_tool .tools/node_modules/.bin/opencode "npm install --prefix bench/.tools opencode-ai" ;;
     D) need_tool .tools/node_modules/.bin/qwen "npm install --prefix bench/.tools @qwen-code/qwen-code" ;;
     E) need_tool .tools/node_modules/.bin/dsh "npm install --prefix bench/.tools @deepseek-ai/dsh" ;;
