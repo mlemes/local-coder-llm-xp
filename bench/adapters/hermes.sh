@@ -15,7 +15,8 @@ model:
   provider: custom
   base_url: http://$HOST:$PORT/v1
   context_length: $CTX_SIZE
+  api_key: $API_KEY
 YML
 printf 'OPENAI_API_KEY=%s\n' "$API_KEY" >"$HERMES_HOME/.env"
 cd "$work"
-"$HOME/.local/bin/hermes" chat -q "$(cat "$prompt")"
+"$HOME/.local/bin/hermes" chat --query-file "$prompt" -Q --yolo --no-restore-cwd
