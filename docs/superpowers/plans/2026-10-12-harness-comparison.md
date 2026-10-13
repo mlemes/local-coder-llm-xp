@@ -1031,3 +1031,164 @@ git commit -m "docs: add harness comparison results"
 **Type consistency:** The results columns (`task col run mode pass secs status in_tok out_tok`) match in `run.sh`, `report.sh`, and the self-test. The mode names `no-loop` and `loop` and the backends `haiku` and `local` match across `run.sh` and the adapters.
 
 **Review focus:** Each line maps to a test: false pass (Task 1 self-test), timeout (Task 2), duplicate header (Task 2), blank tokens (Task 3). The two limits with no test, the searchable check and the silent Gemini diagnosis, appear in the report's Limits section.
+
+---
+
+## Addendum: columns E to H
+
+Added after the first four columns started running. Do not edit `bench/run.sh` while a run is in progress, because bash reads a running script incrementally. Start this addendum after the first full run exits.
+
+| Column | Harness | Source | Backend |
+| --- | --- | --- | --- |
+| E | DeepSeek Harness (`dsh`), MIT, developer preview | `github.com/deepseek-ai/deepseek-harness`, npm `@deepseek-ai/dsh` | Local Qwen3.6 |
+| F | LangChain Deep Agents Code (`dcode`), the harness NVIDIA NemoClaw runs | `curl -LsSf https://langch.in/dcode \| bash` | Local Qwen3.6 |
+| G | Hermes Agent (Nous Research) | `curl -fsSL https://hermes-agent.nousresearch.com/install.sh \| bash` | Local Qwen3.6 |
+| H | OpenClaw | npm `openclaw` | Local Qwen3.6 |
+
+Columns G and H are conditional. Keep each only if its headless mode works after one round of flag fixes. Drop it and record why in `docs/harness-comparison.md` otherwise.
+
+### Constraints for the new columns
+
+- **Isolate configs.** Each adapter sets `HOME="$bench/.home/<name>"` (gitignored) and writes its own provider config there. This keeps the benchmark from changing your real `~/.hermes`, `~/.openclaw`, or `dcode` settings.
+- **Context.** Hermes requires at least 64,000 tokens of context. The server runs at `CTX_SIZE=65536`, which meets it with little margin.
+- **Remote installers.** Columns F and G install with `curl | bash`. Read each script before you run it, and run it only with your approval. If you decline, drop that column.
+- **Docs gaps.** The vendor docs do not state the headless flags or the custom base URL keys. The smoke step finds them from `--help`, the installed docs, and `dsh web --dump-config`.
+
+### Task 8: Adapters for columns E to H
+
+**Files:**
+- Create: `bench/adapters/{dsh,deepagents,hermes,openclaw}.sh`
+- Modify: `bench/run.sh` (functions `adapter_for` and `need_tool`, and the `need_tool` loop)
+
+**Interfaces:**
+- Consumes: the adapter call and environment from Task 2 and the local server settings from `~/.config/local-coder.env`.
+- Produces: four more adapters with the same contract as Task 4.
+
+- [ ] **Step 1: Write the failing check**
+
+Add to `bench/selftest.sh`, above the final `[ "$bad" = 0 ]` line:
+
+```bash
+# Columns E to H must resolve to an adapter script.
+for c in E F G H; do
+  a=$(bash -c "source <(sed -n '/^adapter_for()/p' run.sh); adapter_for $c")
+  [ -x "adapters/$a.sh" ] || { echo "FAIL: column $c has no adapter ($a)"; bad=1; }
+done
+```
+
+Run: `bash bench/selftest.sh`
+Expected: four `FAIL: column X has no adapter ()` lines.
+
+- [ ] **Step 2: Wire the columns into `bench/run.sh`**
+
+Replace `adapter_for` with:
+
+```bash
+adapter_for() { case $1 in A | B) echo claude-local-code ;; C) echo opencode ;; D) echo qwen-code ;; E) echo dsh ;; F) echo deepagents ;; G) echo hermes ;; H) echo openclaw ;; esac; }
+```
+
+Replace `need_tool` and its loop with:
+
+```bash
+need_tool() { # <binary> <install hint>
+  [ -n "${ADAPTER_OVERRIDE:-}" ] || [ -x ".tools/node_modules/.bin/$1" ] || command -v "$1" >/dev/null || {
+    echo "missing $1: $2" >&2
+    exit 1
+  }
+}
+```
+
+```bash
+for c in $COLS; do
+  case $c in
+    C) need_tool opencode "npm install --prefix bench/.tools opencode-ai" ;;
+    D) need_tool qwen "npm install --prefix bench/.tools @qwen-code/qwen-code" ;;
+    E) need_tool dsh "npm install --prefix bench/.tools @deepseek-ai/dsh" ;;
+    F) need_tool dcode "curl -LsSf https://langch.in/dcode | bash" ;;
+    G) need_tool hermes "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash" ;;
+    H) need_tool openclaw "npm install --prefix bench/.tools openclaw" ;;
+  esac
+done
+```
+
+- [ ] **Step 3: Install and read the help for each harness**
+
+Install E and H into `bench/.tools` with npm. Read the F and G install scripts (`curl -fsSL <url> | less` or save to the scratchpad), then run them only if you approve. For each installed harness, run `--help` and the docs it ships, and record the headless command, the auto-approve flag, and the custom provider config in the adapter header comment.
+
+- [ ] **Step 4: Write the four adapters**
+
+Use this skeleton for each adapter. Replace the `RUN` line and the `CONFIG` block with the flags found in step 3. The starting guesses are in the table below the skeleton.
+
+```bash
+#!/usr/bin/env bash
+# Column <X>. <harness> on the local server. Flags confirmed in the smoke run: <fill from step 3>.
+# usage: <name>.sh <prompt-file> <workdir> <usage-out-file>
+set -euo pipefail
+prompt=$1 work=$2 usage=$3
+: >"$usage"
+bench=$(cd "$(dirname "$0")/.." && pwd)
+# shellcheck disable=SC1091
+source "$HOME/.config/local-coder.env"
+export HOME="$bench/.home/<name>"
+mkdir -p "$HOME"
+# CONFIG: write the provider config for http://$HOST:$PORT/v1, model $MODEL_ALIAS, key $API_KEY
+cd "$work"
+# RUN: one headless invocation with auto-approve
+```
+
+| Adapter | Starting guess for `RUN` | Starting guess for `CONFIG` |
+| --- | --- | --- |
+| `dsh.sh` | `"$bench/.tools/node_modules/.bin/dsh" --profile headless "$(cat "$prompt")"` | A custom provider entry. Read `dsh web --dump-config` for the schema. |
+| `deepagents.sh` | `dcode -n "$(cat "$prompt")"` | The config file page of the Deep Agents Code docs, "Compatible APIs" section. |
+| `hermes.sh` | `hermes chat -q "$(cat "$prompt")"` | `provider: custom`, `base_url`, `context_length: 65536` in `$HOME/.hermes/config.yaml`; key in `$HOME/.hermes/.env`. |
+| `openclaw.sh` | `"$bench/.tools/node_modules/.bin/openclaw" agent --message "$(cat "$prompt")"` | The `llama-server` provider: default base URL `http://127.0.0.1:8080/v1`, optional `LLAMA_SERVER_API_KEY`, stable alias `$MODEL_ALIAS`. |
+
+- [ ] **Step 5: Run the self-test**
+
+Run: `chmod +x bench/adapters/*.sh && for f in bench/adapters/*.sh; do bash -n "$f"; done && bash bench/selftest.sh`
+Expected: no syntax errors and `selftest ok`.
+
+- [ ] **Step 6: Smoke-test each adapter on the local model**
+
+Start the model with the rules from Task 4 step 3. For each of the four adapters, run the `hello.txt` smoke prompt with `BACKEND=local MODE=no-loop`. Expected per adapter: exit 0 and `hello.txt` contains `hi`. Fix a flag at most once per adapter. If it still fails, drop the column and note the error. Stop the model afterward with `systemctl --user stop local-coder.service`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add bench
+git commit -m "feat: add adapters for DeepSeek Harness, Deep Agents Code, Hermes, and OpenClaw"
+```
+
+### Task 9: Run the new columns and update the report
+
+**Files:**
+- Modify: `docs/harness-comparison.md`
+
+- [ ] **Step 1: Run the working columns**
+
+Run: `COLS="E F G H" bench/run.sh > bench/logs/extra-run.log 2>&1` with only the columns that passed the smoke test. The runner appends to the existing `bench/results.tsv`. Use the same `RUNS=3` and `TASKS`.
+
+- [ ] **Step 2: Regenerate the table**
+
+Run: `bench/report.sh`
+Expected: one row per column and mode, including E to H.
+
+- [ ] **Step 3: Update `docs/harness-comparison.md`**
+
+Add the new columns to the results table and the recommendation. Record the harness versions, the dropped columns and why, and the outside evidence below.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add docs
+git commit -m "docs: add DeepSeek Harness, Deep Agents Code, Hermes, and OpenClaw results"
+```
+
+### Outside evidence to cite in the report
+
+No published test runs these harnesses on one local Qwen3.6-35B-A3B model with pass rates and token counts. These sources are the closest:
+
+- Sebastian Raschka tested Qwen Code, Codex CLI, and Claude Code on Qwen3.6-35B-A3B. Qwen3.6 scored 4/5 in Qwen Code and 5/5 in Claude Code on his agent bench. He reports Codex worked better than Qwen Code, and Claude Code used the most tokens. He did not test OpenCode.
+- A secondary write-up of Claw-SWE-Bench (arXiv 2606.12344) reports OpenClaw at 66.0% Pass@1 and Hermes at 62.6% on Qwen 3.6-flash. This is a different model, and the numbers are unverified against the paper.
+- WildClawBench compares OpenClaw, Claude Code, Codex, and Hermes Agent. It was not read in full.
+- Qwen's own model card reports Terminal-Bench 2.0 at 51.5 and SWE-bench Verified at 73.4. Each benchmark uses a different harness, so these do not rank harnesses.

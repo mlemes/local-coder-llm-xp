@@ -15,7 +15,7 @@ TASKS=${TASKS:-$(ls tasks)}
 mkdir -p "$LOGDIR"
 [ -s "$RESULTS" ] || printf 'task\tcol\trun\tmode\tpass\tsecs\tstatus\tin_tok\tout_tok\n' >"$RESULTS"
 
-adapter_for() { case $1 in A | B) echo claude-local-code ;; C) echo opencode ;; D) echo qwen-code ;; esac; }
+adapter_for() { case $1 in A | B) echo claude-local-code ;; C) echo opencode ;; D) echo qwen-code ;; E) echo dsh ;; F) echo deepagents ;; G) echo hermes ;; H) echo openclaw ;; esac; }
 backend_for() { if [ "$1" = A ]; then echo haiku; else echo local; fi; }
 modes_for() { case $1 in A | B) echo "no-loop loop" ;; *) echo no-loop ;; esac; }
 
@@ -46,9 +46,9 @@ ensure_local() {
   exit 1
 }
 
-need_tool() {
-  [ -n "${ADAPTER_OVERRIDE:-}" ] || [ -x ".tools/node_modules/.bin/$1" ] || {
-    echo "missing $1: run npm install --prefix bench/.tools opencode-ai @qwen-code/qwen-code" >&2
+need_tool() { # <path under bench> <install hint>
+  [ -n "${ADAPTER_OVERRIDE:-}" ] || [ -x "$1" ] || {
+    echo "missing $1: $2" >&2
     exit 1
   }
 }
@@ -74,7 +74,14 @@ run_one() { # task col run mode
 }
 
 for c in $COLS; do
-  case $c in C) need_tool opencode ;; D) need_tool qwen ;; esac
+  case $c in
+    C) need_tool .tools/node_modules/.bin/opencode "npm install --prefix bench/.tools opencode-ai" ;;
+    D) need_tool .tools/node_modules/.bin/qwen "npm install --prefix bench/.tools @qwen-code/qwen-code" ;;
+    E) need_tool .tools/node_modules/.bin/dsh "npm install --prefix bench/.tools @deepseek-ai/dsh" ;;
+    F) need_tool .home/deepagents/.local/bin/dcode "install dcode with HOME=bench/.home/deepagents" ;;
+    G) need_tool .home/hermes/.local/bin/hermes "install hermes with HOME=bench/.home/hermes" ;;
+    H) need_tool .tools/node_modules/.bin/openclaw "npm install --prefix bench/.tools openclaw" ;;
+  esac
 done
 
 for c in $COLS; do

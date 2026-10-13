@@ -32,5 +32,10 @@ awk -F'\t' 'NR==2 && ($5!=0 || $7!=124) {exit 1}' "$r" || { echo "FAIL: timeout 
 f=$(mktemp)
 printf 'task\tcol\trun\tmode\tpass\tsecs\tstatus\tin_tok\tout_tok\nt\tC\t1\tno-loop\t1\t10\t0\t100\t50\nt\tC\t2\tno-loop\t0\t30\t0\t\t\nt\tC\t3\tno-loop\t1\t20\t0\t300\t150\n' >"$f"
 ./report.sh "$f" | grep -qF '| C | no-loop | 3 | 2/3 (66%) | 20 | 300 |' || { echo "FAIL: report row mismatch"; bad=1; }
+# Columns E to H must resolve to an adapter script.
+for c in E F G H; do
+  a=$(bash -c "source <(sed -n '/^adapter_for()/p' run.sh); adapter_for $c")
+  [ -x "adapters/$a.sh" ] || { echo "FAIL: column $c has no adapter ($a)"; bad=1; }
+done
 [ "$bad" = 0 ] && echo "selftest ok"
 exit "$bad"
