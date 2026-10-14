@@ -32,10 +32,16 @@ awk -F'\t' 'NR==2 && ($5!=0 || $7!=124) {exit 1}' "$r" || { echo "FAIL: timeout 
 f=$(mktemp)
 printf 'task\tcol\trun\tmode\tpass\tsecs\tstatus\tin_tok\tout_tok\nt\tC\t1\tno-loop\t1\t10\t0\t100\t50\nt\tC\t2\tno-loop\t0\t30\t0\t\t\nt\tC\t3\tno-loop\t1\t20\t0\t300\t150\n' >"$f"
 ./report.sh "$f" | grep -qF '| C | no-loop | 3 | 2/3 (66%) | 20 | 300 |' || { echo "FAIL: report row mismatch"; bad=1; }
-# Columns E to H must resolve to an adapter script.
-for c in E F G H; do
+# Every column letter, with or without an @model suffix, must resolve to an adapter script and a backend.
+for c in A B C D E F G H I C@luna F@haiku I@local A@luna; do
   a=$(bash -c "source <(sed -n '/^adapter_for()/p' run.sh); adapter_for $c")
   [ -x "adapters/$a.sh" ] || { echo "FAIL: column $c has no adapter ($a)"; bad=1; }
 done
+be() { bash -c "source <(sed -n '/^backend_for()/p' run.sh); backend_for $1"; }
+[ "$(be A)" = haiku ] && [ "$(be I)" = luna ] && [ "$(be C)" = local ] && [ "$(be C@luna)" = luna ] && [ "$(be I@local)" = local ] ||
+  { echo "FAIL: backend_for mapping"; bad=1; }
+# No adapter may hold a literal key, and the key file must stay ignored.
+! grep -rEn 'sk-[A-Za-z0-9_-]{16,}' adapters/ run.sh || { echo "FAIL: literal key in bench"; bad=1; }
+grep -qx '.keys.env' .gitignore || { echo "FAIL: .keys.env not ignored"; bad=1; }
 [ "$bad" = 0 ] && echo "selftest ok"
 exit "$bad"

@@ -53,15 +53,18 @@ Benchmark each model on your own tasks before you switch. Public speed figures f
 
 ## Harness benchmark
 
-`bench/` compares coding agent harnesses on the same tasks. It is a set of shell scripts with no service of its own.
+`bench/` compares coding agent harnesses on the same tasks. It is a set of shell scripts plus one stdlib Python proxy. It runs no service of its own.
 
-- **Runner (`bench/run.sh`):** loops over tasks, columns, and runs. It owns the model lifecycle: it starts `local-coder.service` only for the local columns and stops it on exit, but only if it started it.
-- **Adapters (`bench/adapters/`):** one script per harness. Each runs the harness headless in a temp workdir. The adapter never scores a run.
-- **Tasks (`bench/tasks/`):** a prompt, a starter tree, a known-good solution, and a hidden `check.sh`. The runner runs the check after the adapter finishes. It never copies the check into the workdir.
-- **Report (`bench/report.sh`):** reads `bench/results.tsv` and prints a markdown table.
-- **Trust boundary:** the agent sees the prompt and its workdir. It does not see `check.sh`, although a harness with a shell tool could search the filesystem for it.
+- **Runner (`bench/run.sh`):** loops over tasks, columns, and runs. It owns the local model lifecycle: it starts `local-coder.service` only for local columns and stops it on exit, but only if it started it.
+- **Columns:** a letter picks the harness (A and B `claude-local-code`, C OpenCode, D Qwen Code, E DeepSeek Harness, F Deep Agents Code, G Hermes, H OpenClaw, I Codex CLI). An optional `@haiku`, `@luna`, or `@local` suffix picks the model. Without a suffix, A is Haiku, I is Luna on the ChatGPT login, and the rest are local Qwen.
+- **Adapters (`bench/adapters/`):** one script per harness. Each runs the harness headless in a temp workdir and never scores a run. `_remote.sh` resolves the vendor, model name, URL, and key for `@haiku` and `@luna`. `_litellm.sh` starts a LiteLLM proxy when a harness speaks a different protocol than the vendor (Codex on Haiku, `claude-local-code` on Luna).
+- **Proxy (`bench/adapters/fix_empty_content.py`):** sits between a harness and `llama-server` (or an OpenAI host) for Deep Agents Code and Qwen Code. It drops empty reasoning items, moves tool arguments back to the function call, fills empty content, and, for OpenAI hosts, renames `max_tokens` and turns reasoning off when tools are present.
+- **Tasks (`bench/tasks/`):** a prompt, a starter tree, a known-good solution, and a hidden `check.sh`. The runner runs the check after the adapter finishes and never copies it into the workdir.
+- **Reports:** `bench/matrix.sh` prints the harness by model matrix (markdown, or tab-separated with `--tsv`). `bench/report.sh` prints the older per-column table. `bench/matrix.tsv` is the committed result.
+- **Self-test (`bench/selftest.sh`):** proves every check fails on the starter and passes on the solution, dry-runs the runner with stub adapters, and checks the column mapping.
+- **Trust boundary:** the agent sees the prompt and its workdir. It does not see `check.sh`, although a harness with a shell tool could search the filesystem for it. API keys live in `bench/.keys.env` (gitignored), and `_remote.sh` reads them on demand. The runner never exports the Anthropic key to the `claude` wrapper, because subscription tokens are barred in third-party harnesses and the wrapper uses the subscription.
 
-Columns: A is `claude-local-code` on Haiku (production baseline). B, C, and D run `claude-local-code`, OpenCode, and Qwen Code on the local Qwen3.6 server. Results are in [harness comparison](harness-comparison.md).
+Results are in [harness comparison](harness-comparison.md).
 
 ## Security
 

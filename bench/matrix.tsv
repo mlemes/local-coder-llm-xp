@@ -1,0 +1,28 @@
+harness	model	mode	runs	passes	pass_pct	median_secs
+claude-local-code	Haiku	loop	15	15	100	8
+claude-local-code	Haiku	no-loop	15	15	100	6
+Codex CLI	Haiku	no-loop	15	15	100	14
+Deep Agents Code	Haiku	no-loop	15	15	100	13
+DeepSeek Harness	Haiku	no-loop	15	15	100	8
+Hermes	Haiku	no-loop	15	15	100	13
+OpenClaw	Haiku	no-loop	15	15	100	26
+OpenCode	Haiku	no-loop	15	15	100	9
+Qwen Code	Haiku	no-loop	15	15	100	18
+claude-local-code	Luna	loop	15	15	100	16
+claude-local-code	Luna	no-loop	15	15	100	15
+Codex CLI	Luna	no-loop	15	14	93	17
+Deep Agents Code	Luna	no-loop	15	15	100	19
+DeepSeek Harness	Luna	no-loop	15	15	100	17
+Hermes	Luna	no-loop	15	15	100	23
+OpenClaw	Luna	no-loop	15	15	100	34
+OpenCode	Luna	no-loop	15	15	100	18
+Qwen Code	Luna	no-loop	15	15	100	21
+claude-local-code	Qwen3.6-35B-A3B (local)	loop	15	15	100	54
+claude-local-code	Qwen3.6-35B-A3B (local)	no-loop	15	8	53	40
+Codex CLI	Qwen3.6-35B-A3B (local)	no-loop	15	12	80	76
+Deep Agents Code	Qwen3.6-35B-A3B (local)	no-loop	15	4	26	109
+DeepSeek Harness	Qwen3.6-35B-A3B (local)	no-loop	15	11	73	75
+Hermes	Qwen3.6-35B-A3B (local)	no-loop	15	10	66	44
+OpenClaw	Qwen3.6-35B-A3B (local)	no-loop	15	9	60	147
+OpenCode	Qwen3.6-35B-A3B (local)	no-loop	15	10	66	157
+Qwen Code	Qwen3.6-35B-A3B (local)	no-loop	15	12	80	86

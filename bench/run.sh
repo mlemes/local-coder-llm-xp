@@ -2,7 +2,7 @@
 # Benchmark runner.
 # Env: COLS="A B C D"  RUNS=3  TASKS=<names>  TIMEOUT=900  RESULTS  LOGDIR
 #      ADAPTER_OVERRIDE=<script>  (dry run: use this adapter for every column, skip the model)
-# Columns: A claude-local-code on Haiku, B claude-local-code on local Qwen, C OpenCode, D Qwen Code (local Qwen).
+# Columns: letters A to I pick the harness; add @haiku, @luna, or @local to pick the model (see adapter_for and backend_for).
 set -euo pipefail
 cd "$(dirname "$0")"
 BENCH=$PWD
