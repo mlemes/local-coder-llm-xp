@@ -22,7 +22,7 @@ The raw table is `bench/matrix.tsv`. Regenerate it with `bench/matrix.sh --tsv >
 
 ## What the numbers say
 
-- **A strong model hides the harness.** Haiku and Luna pass 299 of 300 runs across all eight harnesses. On these tasks, only speed separates the harnesses.
+- **A strong model hides the harness.** Haiku and Luna pass 269 of 270 runs, and 239 of 240 without the wrapper loop. On these tasks, only speed separates the harnesses.
 - **A weak model exposes the harness.** With the same local Qwen model, pass rates range from 4/15 to 12/15 without a loop. Codex CLI and Qwen Code lead at 12/15. Deep Agents Code trails at 4/15.
 - **A test loop beats every harness choice on the weak model.** `claude-local-code` with its loop reaches 15/15 on Qwen. The loop re-runs the hidden check as its test command, so this number is an upper bound. Without the loop, the same wrapper scores 8/15.
 - **Speed follows overhead, not model.** Haiku through `claude-local-code` takes 6 s. OpenClaw takes 26 s for the same passing result.
@@ -56,8 +56,8 @@ Each task has a prompt, a starter tree, a known-good solution, and a hidden chec
 
 ## How the model reaches each harness
 
-- **Local Qwen:** every harness talks to `llama-server` on `127.0.0.1:8080`. Deep Agents Code and Qwen Code go through `bench/adapters/fix_empty_content.py` because `llama-server` mangles two things in the Responses API: empty reasoning items, and tool arguments that land in the reasoning item.
-- **Haiku and Luna:** the harnesses use the vendor API with keys from `bench/.keys.env`. Codex CLI on Haiku and `claude-local-code` on Luna go through a local LiteLLM proxy (`bench/adapters/_litellm.sh`) that translates the Responses and Messages protocols.
+- **Local Qwen:** every harness talks to `llama-server` on `127.0.0.1:8080`. Deep Agents Code goes through `bench/adapters/fix_empty_content.py` because `llama-server` mangles two things in the Responses API: empty reasoning items, and tool arguments that land in the reasoning item.
+- **Haiku and Luna:** Qwen Code on Luna also goes through the proxy, which renames `max_tokens` and turns reasoning off. The harnesses use the vendor API with keys from `bench/.keys.env`. Codex CLI on Haiku and `claude-local-code` on Luna go through a local LiteLLM proxy (`bench/adapters/_litellm.sh`) that translates the Responses and Messages protocols.
 - **Luna on Codex CLI:** this cell uses the ChatGPT login, not an API key.
 - **Anthropic subscription tokens:** Anthropic bars them in third-party harnesses. Only `claude-local-code`, which runs the official `claude` binary, uses the subscription. Every other Haiku cell uses an API key.
 

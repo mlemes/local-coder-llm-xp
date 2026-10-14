@@ -1,26 +1,26 @@
 # How the harness changes coding agent results
 
-*October 2026. Eight harnesses, three models, 405 scored runs, and one result: a feedback loop brought a free local model level with two hosted models.*
+*October 2026. Eight harnesses, three models, 405 scored runs. With test-guided retries, a locally served Qwen model matched the hosted models' pass rate on a five-task suite.*
 
-Coding agent benchmarks mostly vary the model. The harness, the program that sends prompts, runs tools, and decides when to stop, is usually held constant or treated as plumbing. This experiment holds the model constant and varies the harness.
+This experiment compares eight coding agent harnesses separately for each of three models, then tests test-guided retries in one wrapper. A harness is the program that sends prompts, runs tools, and decides when to stop.
 
 Three findings:
 
-- With a strong model, the harness barely changes the pass rate. It changes speed.
-- With a weak model, the same weights scored from 4/15 to 12/15 depending on the harness.
-- One harness feature, running tests and returning the failures to the agent, took a local model from 8/15 to 15/15. That equals the hosted models on this suite.
+- Hosted models scored near the ceiling in every harness. Pass rates did not separate the harnesses. Wall time did.
+- The local Qwen model passed between 4/15 and 12/15 runs depending on the harness, with the same model file and server defaults.
+- In one wrapper, adding grading feedback and retries raised the local model from 8/15 to 15/15, matching the hosted models' observed scores. The retry loop received the grading check's failure output, which makes this an upper bound.
 
 ## Experiment design
 
 ### Models
 
-| Role | Model | Identifier | How it ran |
-| --- | --- | --- | --- |
-| Hosted, small | Claude Haiku 5.5 | `claude-haiku-5-5` | Anthropic API |
-| Hosted, large | OpenAI Luna | `gpt-6-luna` | OpenAI API, or the ChatGPT login for Codex CLI |
-| Local | Qwen3.6-35B-A3B | `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf`, 22,134,528,992 bytes, SHA256 `ac0e2c1189e055faa36eff361580e79c5bd6f8e76bffb4ce547f167d53e31a61` | `llama-server` from `llama.cpp` build b11559, 64K context, temperature 0.6, top-p 0.95, min-p 0, reasoning budget 2048 |
+| Model | Identifier | How it ran |
+| --- | --- | --- |
+| Claude Haiku 5.5 | `claude-haiku-5-5` | Anthropic API; the `claude-local-code` wrapper used a Claude subscription |
+| OpenAI Luna | `gpt-6-luna` | OpenAI API; Codex CLI used the ChatGPT login |
+| Qwen3.6-35B-A3B | `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` | `llama-server` on one RTX 3070 (8 GB), 64K context |
 
-Qwen3.6-35B-A3B is a mixture-of-experts model with about 3 billion active parameters. It ran on one RTX 3070 with 8 GB of VRAM and 30 GB of RAM at 35 to 40 tokens per second, with no per-token cost.
+Qwen3.6-35B-A3B is a mixture-of-experts model with about 3 billion active parameters per token ([model card](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)). The file size, SHA256, `llama.cpp` build, and serving settings are in [`docs/model-comparison.md`](model-comparison.md). The local model incurs no API token charges. Operating cost was not measured.
 
 ### Harnesses
 
@@ -35,9 +35,11 @@ Qwen3.6-35B-A3B is a mixture-of-experts model with about 3 billion active parame
 | Codex CLI | 0.160.1 |
 | DeepSeek Harness | not recorded |
 
+The wrapper ran in two configurations, with and without its loop. That makes nine configurations per model: 3 models × 9 configurations × 5 tasks × 3 repetitions = 405 runs.
+
 ### Tasks and grading
 
-Five small tasks, each with a hidden check the agent never sees:
+Five small tasks:
 
 - Write `parse_duration` from a spec.
 - Write `merge_intervals` from a spec.
@@ -45,19 +47,28 @@ Five small tasks, each with a hidden check the agent never sees:
 - Change a function signature and update its caller.
 - Rename a function across a small project.
 
-The checks include edge cases the prompt does not mention. The runner copies the starter files into a temp directory, calls the harness headless, and runs the check itself. A self-reported pass counts for nothing. Each cell is five tasks times three runs, 15 runs.
+The runner copies the starter files into a temp directory, calls the harness headless, and runs the grading check itself. A self-reported pass counts for nothing. The checks include edge cases the prompt does not mention and stay outside the task directory. Nothing enforces their secrecy: a harness with a shell tool could search the filesystem for them.
+
+### The retry loop
+
+After each agent invocation, the wrapper runs a test command. On failure, it starts another invocation with the original task and the filtered failure lines, up to eight invocations. In this benchmark the test command is the grading check, so the loop sees the strongest feedback available. The wrapper can also consult Gemini after the same test fails three times, but that trigger needs named failures (`not ok` or `✖` lines). The Python check emits a traceback, so diagnosis did not fire.
 
 ## Results
 
-### Strong models: the harness barely matters
+### Local Qwen: retries against a single pass
 
-Haiku 5.5 and Luna passed 299 of 300 runs across the eight harnesses. The single miss was Codex CLI on Luna.
+| Configuration | Passed | Median time | Mean time |
+| --- | --- | --- | --- |
+| Wrapper, no loop | 8/15 | 40 s | 41.1 s |
+| Wrapper, loop | 15/15 | 54 s | 92.8 s |
+| Haiku 5.5, wrapper loop | 15/15 | 8 s | |
+| Luna, wrapper loop | 15/15 | 16 s | |
 
-Speed was the only difference. The `claude-local-code` wrapper on Haiku took a median of 6 seconds per task. OpenClaw took 26 seconds for the same correct result. On short tasks, a capable model carries the harness, so the choice among these eight is a question of latency and ergonomics.
+The median wall time rose from 40 to 54 seconds, but the mean rose from 41.1 to 92.8 seconds. The three loop runs on `merge_intervals` took 133, 179, and 406 seconds. The local model's median in the loop configuration was about 3.4 times Luna's and 6.8 times Haiku's.
 
-### Weak model: the harness decides
+The results show that test-guided retries repaired these tasks. They do not separate the value of the feedback from the value of extra attempts.
 
-Qwen3.6 on the same server, the same tasks, and no retry loop:
+### Local Qwen: eight harnesses without a loop
 
 | Harness | Passed | Median time |
 | --- | --- | --- |
@@ -67,10 +78,10 @@ Qwen3.6 on the same server, the same tasks, and no retry loop:
 | OpenCode | 10/15 | 157 s |
 | Hermes | 10/15 | 44 s |
 | OpenClaw | 9/15 | 147 s |
-| `claude-local-code`, no loop | 8/15 | 40 s |
+| Wrapper, no loop | 8/15 | 40 s |
 | Deep Agents Code | 4/15 | 109 s |
 
-The weights and sampling settings are identical, and the pass rate spans a factor of three. Most of the variation comes from one task. Across the 120 local no-loop runs:
+Across the 120 local no-loop runs, the tasks differ sharply:
 
 | Task | Passed |
 | --- | --- |
@@ -80,60 +91,48 @@ The weights and sampling settings are identical, and the pass rate spans a facto
 | `parse_duration` | 12/24 |
 | `merge_intervals` | 0/24 |
 
-`merge_intervals` failed in every harness. At least 19 of the 24 failures stop at the same assertion: input given as lists, `[[1, 2], [4, 5]]`, must return the tuples `[(1, 2), (4, 5)]`. The prompt asks for tuples but never shows list input. The agents wrote code, tested the cases the prompt mentioned, reported success, and stopped. A harness that only executes tool calls cannot tell the model something the model does not already check, so none of them fixed it.
+`merge_intervals` accounts for 24 of the 44 failures, but it fails everywhere, so it adds nothing to the differences between harnesses. Those come from the other four tasks, mainly `parse_duration`. The cause of the remaining spread was not diagnosed.
 
-The remaining spread between harnesses on the other tasks was not diagnosed. Deep Agents Code needed a proxy to repair `llama-server` Responses API output and still scored lowest.
+### A diagnosed failure: `merge_intervals`
 
-### A feedback loop closes the gap
+Of the 24 failed `merge_intervals` runs, 22 stop at the same assertion: input given as lists, `[[1, 2], [4, 5]]`, must return the tuples `[(1, 2), (4, 5)]`. The other two never produced an importable `intervals` module. The prompt asks for tuples and never shows list input. The logs do not establish which tests each agent ran. A harness that only relays tool calls adds no information the model lacks. A retry that includes the failing assertion does.
 
-`claude-local-code` can run a test command after each edit, pass the failing lines to the agent, and let it retry. With the loop on, Qwen3.6 passed 15/15, including 3/3 on `merge_intervals`. With the loop off, the same wrapper and model passed 8/15.
+### Hosted models
 
-| Configuration | Passed | Median time |
-| --- | --- | --- |
-| Qwen3.6, no loop | 8/15 | 40 s |
-| Qwen3.6, loop | 15/15 | 54 s |
-| Haiku 5.5, loop | 15/15 | 8 s |
-| Luna, loop | 15/15 | 16 s |
+Haiku 5.5 and Luna passed 269 of 270 runs. Without the wrapper's loop, they passed 239 of 240. The one failure was Codex CLI on Luna.
 
-The loop added 14 seconds at the median and moved the pass rate from 53% to 100%, which matches the hosted models on this suite. The local model remains three to seven times slower than Haiku and Luna.
-
-## Why the loop worked
-
-Each failure had the same shape: the model skipped a case the prompt did not show, and nothing in the harness told it so.
-
-| Failure mode | Observed in | Harness feature that addresses it |
-| --- | --- | --- |
-| The model misses an edge case and reports success | `merge_intervals`, 19 of 24 local no-loop failures | Run the tests, return only the failing lines, retry |
-| The server and harness disagree on a protocol | Deep Agents Code on `llama-server` | A repair proxy (partial effect: 4/15) |
-| Startup and tool overhead dominate short tasks | OpenClaw, 26 s against 6 s on Haiku | Fewer round trips per task |
-
-The model that missed the list-to-tuple case did not need to be smarter. It needed to be told that an assertion failed. An external check supplies the signal a single pass lacks.
+Median wall time for Haiku ranged from 6 seconds (wrapper, no loop) to 26 seconds (OpenClaw). The timing includes startup, and its components were not measured.
 
 ## Recommendations
 
-1. **Add a verification step before you change the model.** On the weak model, a test loop was worth more than any harness swap.
-2. **Match the check to the real project.** This benchmark used the hidden check as the loop's test command. Your own test suite is a weaker signal, so expect less than 15/15.
-3. **Pick the harness by latency when the model is strong.** Eight harnesses were indistinguishable on pass rate.
-4. **Test a harness against your serving stack.** Protocol differences with a local server cost runs that have nothing to do with model quality.
+1. **Add a verification step before you change the model.** From the wrapper's 8/15 baseline, grading feedback and retries added seven passes. Switching to either top-scoring no-loop harness added four.
+2. **Measure with your own tests.** This benchmark used the grading check as the loop's test command. The effect of ordinary project tests is unmeasured. Evaluate it against separate held-out checks.
+3. **Compare latency when correctness is similar.** Hosted-model pass rates were within one run of each other, so latency and ergonomics are the remaining differences on this suite.
+4. **Test a harness against your serving stack.** Deep Agents Code needed a proxy to repair `llama-server` Responses API output and scored 4/15. The proxy's independent effect was not measured, so treat that score as confounded by the integration.
 
-## Limitations and future work
+## Limitations and next experiments
 
-- **Suite size.** Five tasks, three runs each. One failed run moves a cell by seven points.
+- **Suite size.** Each cell has three repetitions of five distinct tasks. One failure changes a pass rate by 6.7 percentage points. The suite establishes neither statistical significance nor general model equivalence.
 - **Task size.** Each task fits in one prompt and a few files. The results say nothing about large repositories or long sessions.
-- **Loop upper bound.** The loop's test command is the hidden check, the strongest feedback signal available.
-- **Altered cells.** Qwen Code on Luna ran with reasoning off, because OpenAI rejects `reasoning_effort` together with tools. Deep Agents Code on Qwen ran through a repair proxy.
-- **Unmeasured cost.** API spend per cell was not recorded, and token counts are blank for most harnesses.
-- **Open question.** Whether a weaker feedback signal, such as a project's own unit tests, still lifts the local model to hosted-model levels.
+- **Altered cells.** Qwen Code on Luna ran with reasoning off, because OpenAI rejects `reasoning_effort` together with tools. Codex CLI on Haiku and the wrapper on Luna ran through a LiteLLM proxy that translates protocols.
+- **Cost.** API spend per cell was not recorded, and token counts are blank for most harnesses.
+- **Next.** Run the loop with equal attempt budgets for every harness, with ordinary project tests as feedback and separate held-out grading.
 
 ## Reproduce
 
-The runner, adapters, tasks, and checks are in the repository. `bench/selftest.sh` proves that every check fails on the empty starter and passes on the reference solution. Then select columns:
+The runner, adapters, tasks, and checks are in the repository. `bench/selftest.sh` checks that each grader rejects the starter and accepts the reference solution. A hosted-model subset:
 
 ```bash
 COLS="A C@luna I" RUNS=3 bench/run.sh
 bench/matrix.sh
 ```
 
-A column is a harness letter with an optional `@haiku`, `@luna`, or `@local` suffix for the model. The full matrix is in [`docs/harness-comparison.md`](harness-comparison.md).
+The local comparison, with separate result files:
 
-Read the failing check output before you tune anything. The `merge_intervals` result came from one line of it.
+```bash
+export RESULTS=$(mktemp) LOGDIR=$(mktemp -d)
+COLS="B C D" RUNS=3 bash bench/run.sh
+bash bench/matrix.sh --tsv "$RESULTS"
+```
+
+A column is a harness letter with an optional `@haiku`, `@luna`, or `@local` suffix. The full matrix is in [`docs/harness-comparison.md`](harness-comparison.md).
