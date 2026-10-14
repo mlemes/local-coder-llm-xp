@@ -1,36 +1,32 @@
 # Eight coding agent harnesses, three models, 405 runs
 
-I run a small local coding setup. A Qwen3.6 35B model on an 8 GB GPU, served by llama.cpp, with a wrapper script around Claude Code that sends the dull edits to a cheaper model and retries until the tests pass. It worked, but I had never checked whether the wrapper was the right harness. Everyone I read had a favorite, and nobody had numbers on the same tasks.
+A coding agent is a model plus a harness: the program that sends prompts, runs tools, and decides when to stop. Published comparisons usually vary the model. This benchmark holds the model fixed and varies the harness, then repeats with three models to see when the harness matters.
 
-I built a benchmark and ran it. This is what came out, including the part where my own wrapper had a bug that made it look worse than it was.
-
-## The setup
+## Method
 
 Five small tasks, each with a hidden check the agent never sees:
 
-- write `parse_duration` from a spec
-- write `merge_intervals` from a spec
-- fix a bug in a discount calculation
-- change a function signature and update its caller
-- rename a function across a small project
+- Write `parse_duration` from a spec.
+- Write `merge_intervals` from a spec.
+- Fix a bug in a discount calculation.
+- Change a function signature and update its caller.
+- Rename a function across a small project.
 
-The checks test edge cases the prompt does not mention. Empty input, touching intervals, a negative number. The runner copies the starter files into a temp directory, calls the harness headless, then runs the check itself. If an agent says it passed, I do not care.
+The checks cover edge cases the prompt omits: empty input, touching intervals, negative numbers. The runner copies the starter files into a temp directory, calls the harness headless, and runs the check itself. A self-reported pass counts for nothing.
 
-Eight harnesses: my wrapper, OpenCode, Qwen Code, DeepSeek's harness, Deep Agents Code, Hermes, OpenClaw, and Codex CLI. The wrapper runs in two modes, with and without its retry loop. Three models: Claude Haiku, OpenAI's Luna, and the local Qwen. Each cell is five tasks times three runs, so 15 runs. The full matrix is 405 runs.
+The harnesses are `claude-local-code` (a wrapper around headless Claude Code with an optional test-and-retry loop), OpenCode, Qwen Code, DeepSeek Harness, Deep Agents Code, Hermes, OpenClaw, and Codex CLI. The models are Claude Haiku, OpenAI Luna, and a local Qwen3.6-35B-A3B served by `llama.cpp`. Each cell is five tasks times three runs, 15 runs. The matrix holds 405 runs.
 
-Everything is shell scripts. Each harness gets one adapter, a small script that takes a prompt file and a working directory. I did not want Docker or a benchmark framework for a question this small.
+Everything is shell. Each harness has one adapter that takes a prompt file and a working directory. The benchmark needs no Docker and no framework.
 
-## The strong models told me nothing
+## Strong models hide the harness
 
-Haiku and Luna passed 299 of 300 runs. The one miss was Codex on Luna, once.
+Haiku and Luna passed 299 of 300 runs. The single miss was Codex CLI on Luna.
 
-The boring result almost got skipped. On tasks this small, a good model finishes the job whatever you put around it. The only difference was speed. My wrapper on Haiku took a median of 6 seconds. OpenClaw took 26 for the same correct answer. If you run a frontier model on short tasks, your harness choice is a latency and taste decision, not a quality one.
+On tasks this small, a capable model finishes the job regardless of the harness. Only latency differs. The wrapper on Haiku took a median of 6 seconds. OpenClaw took 26 seconds for the same correct result. With a frontier model on short tasks, harness choice is a latency and ergonomics decision, not a quality one.
 
-I would not have believed that before running it. Blog rankings of harnesses read as if they matter a lot.
+## The local model exposes the harness
 
-## The local model is where it got interesting
-
-Same Qwen model, same server, same tasks. Pass rates without any retry loop:
+Same Qwen model, same server, same tasks, no retry loop:
 
 | Harness | Passed | Median time |
 | --- | --- | --- |
@@ -40,46 +36,45 @@ Same Qwen model, same server, same tasks. Pass rates without any retry loop:
 | OpenCode | 10/15 | 157 s |
 | Hermes | 10/15 | 44 s |
 | OpenClaw | 9/15 | 147 s |
-| My wrapper, no loop | 8/15 | 40 s |
+| `claude-local-code`, no loop | 8/15 | 40 s |
 | Deep Agents Code | 4/15 | 109 s |
 
-A spread from 4 to 12 out of 15 with one model. So the harness does matter, but only when the model is weak enough to need help.
+The spread is 4 to 12 out of 15 with one model. The harness matters when the model is weak enough to need help.
 
-Take the bottom row with a grain of salt. Deep Agents Code speaks the OpenAI Responses API, and llama.cpp's server gets two things wrong there: it turns empty reasoning items into empty messages, and it puts tool arguments in the reasoning item instead of the tool call. I wrote a small proxy that fixes both. The 4/15 is the harness plus my proxy, and I cannot fully separate them.
+Treat the last row with care. Deep Agents Code uses the OpenAI Responses API, and `llama-server` mishandles two things there. It turns empty reasoning items into empty messages, and it puts tool arguments in the reasoning item instead of the tool call. A small stdlib proxy, `bench/adapters/fix_empty_content.py`, repairs both. The 4/15 reflects the harness plus the proxy, and the two cannot be fully separated.
 
-## My wrapper had a bug
+## A bug in the retry loop
 
-The wrapper has a loop. It runs your test command, feeds the failures back to the agent, and tries again. On the first full run, the loop scored 9/15 on Qwen. Barely better than no loop.
+The wrapper runs a test command, feeds failures back to the agent, and retries. In the first full run the loop scored 9/15 on Qwen, barely above no loop.
 
-The result made no sense, so I read the logs. After the first failed test the script exited. It pulled failing test names with `grep` under `set -euo pipefail`, and when `grep` found no match it returned 1, which killed the script before the retry. A `|| true` fixed it. Same wrapper, same model: 15/15.
+The logs showed the script exiting after the first failed test. It extracts failing test names with `grep` under `set -euo pipefail`. When `grep` finds no match it returns 1, and the script dies before the retry. Appending `|| true` fixed it. The same wrapper and model then scored 15/15.
 
-I mention this because I was about to publish "the wrapper loses to Codex on local models." It would have been wrong. A benchmark that finds a bug in your own tool is doing its job, and a benchmark that confirms what you hoped is the one to distrust.
+Two lessons follow. A benchmark that finds a bug in the tool under test is working. And a result that confirms the expected ranking deserves the same scrutiny as one that contradicts it.
 
-There is a catch. The loop's test command is the hidden check. In real use you would give the agent your own tests, so treat the 15/15 as an upper bound, not a fair comparison with the other rows.
+The loop has a caveat. Its test command is the hidden check. In real use, the loop runs the project's own tests, so 15/15 is an upper bound and not a fair comparison with the other rows.
 
-## Things that cost me time
+## Integration problems
 
-- **Subscription tokens.** I wanted to run Haiku through every harness on my Claude subscription. Anthropic bars subscription tokens in third-party tools. Only the wrapper, which runs the official `claude` binary, qualifies. Everything else used an API key. Read the terms before you build the plan around a login.
-- **An API key with no workspace.** The first Anthropic key I made got rejected with a request for an `anthropic-workspace-id` header. Creating a new key inside a workspace fixed it.
-- **Luna and tools.** OpenAI's chat completions endpoint rejects `reasoning_effort` together with tools, and wants `max_completion_tokens` instead of `max_tokens`. The Qwen Code cell on Luna runs with reasoning off because of this. I said so in the table notes. You should know about it before you compare that number.
-- **A harness that hung.** `dcode` waited on stdin until I added `</dev/null`.
-- **A proxy that translates between protocols.** Codex wants the Responses API, the Claude wrapper wants the Messages API. LiteLLM sits in the middle for the cells where the model's native API does not match.
+- **Subscription tokens.** Anthropic bars subscription OAuth tokens in third-party harnesses. Only the wrapper, which runs the official `claude` binary, can use a subscription. Every other Haiku cell needs an API key.
+- **Workspace-scoped keys.** An Anthropic API key created outside a workspace was rejected with a request for an `anthropic-workspace-id` header. A key created inside a workspace worked.
+- **Luna with tools.** OpenAI chat completions reject `reasoning_effort` together with tools and require `max_completion_tokens` in place of `max_tokens`. The proxy sets reasoning to `none` for the Qwen Code cell on Luna. That cell is therefore not comparable with the others.
+- **Stdin.** `dcode` waits on stdin in headless mode. Redirecting `</dev/null` fixes the hang.
+- **Protocol mismatch.** Codex CLI speaks the Responses API and the Claude wrapper speaks the Messages API. A local LiteLLM proxy translates for the cells where the vendor API does not match.
 
-## What I would do with this
+## Conclusions
 
-Keep the wrapper with Haiku for daily work. It was the fastest perfect row and it already does what I need.
+- **Daily use:** `claude-local-code` on Haiku was the fastest row with a perfect score.
+- **Weak local model:** a test command with retries lifted Qwen from 8/15 to 15/15. No harness swap came close.
+- **No loop available:** Codex CLI and Qwen Code scored highest on Qwen.
+- **Limits:** five small tasks and three runs each. One failed run moves a cell by seven points. The tasks fit in one prompt and a few files, so the results say nothing about a 200-file repository or a two-hour session. API spend per cell was not recorded.
 
-For a weak local model, put your effort into a test command with retries. That moved Qwen from 8/15 to 15/15, far more than any swap of harness did. If you cannot have a loop, Codex CLI and Qwen Code were the best of the eight.
+## Reproduce
 
-Do not take any of this as a ranking. Five small tasks, three runs each. One failed run moves a cell by seven points. The tasks fit in one prompt and a handful of files, so nothing here says how a harness handles a 200-file repository or a two-hour session. I also did not record what the API runs cost.
-
-## Run it yourself
-
-The repository has the runner, the adapters, the tasks, and the checks. Start with `bench/selftest.sh`, which proves every check fails on the empty starter and passes on the reference solution. Then pick columns:
+The repository contains the runner, adapters, tasks, and checks. `bench/selftest.sh` proves that every check fails on the empty starter and passes on the reference solution. Then select columns:
 
 ```bash
 COLS="A C@luna I" RUNS=3 bench/run.sh
 bench/matrix.sh
 ```
 
-A column is a letter for the harness, with an optional `@haiku`, `@luna`, or `@local` for the model. Add your own tasks by dropping a folder under `bench/tasks/` with a prompt, a starter tree, a solution, and a `check.sh`. If your tasks are bigger than mine, I would like to see whether the strong-model result still holds.
+A column is a harness letter with an optional `@haiku`, `@luna`, or `@local` suffix for the model. To add a task, create a folder under `bench/tasks/` with `prompt.md`, `starter/`, `solution/`, and `check.sh`. Larger tasks are the open question: whether the strong-model result holds on them is untested.
