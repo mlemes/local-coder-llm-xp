@@ -7,8 +7,8 @@ This experiment compares eight coding agent harnesses separately for each of thr
 Three findings:
 
 - Hosted models scored near the ceiling in every harness. Pass rates did not separate the harnesses. Wall time did.
-- The local Qwen model passed between 4/15 and 12/15 runs depending on the harness, with the same model file and server defaults.
-- In one wrapper, adding grading feedback and retries raised the local model from 8/15 to 15/15, matching the hosted models' observed scores. The retry loop received the grading check's failure output, which makes this an upper bound.
+- The local Qwen model passed between 4/15 and 12/15 runs depending on the harness, with the same model file and server settings. Deep Agents Code also ran behind a repair proxy.
+- In one wrapper, adding grading feedback and retries raised the local model from 8/15 to 15/15, matching the hosted models' observed scores. The retry loop saw the grading check's own failure output, so 15/15 is an optimistic upper bound.
 
 ## Experiment design
 
@@ -20,7 +20,7 @@ Three findings:
 | OpenAI Luna | `gpt-6-luna` | OpenAI API; Codex CLI used the ChatGPT login |
 | Qwen3.6-35B-A3B | `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` | `llama-server` on one RTX 3070 (8 GB), 64K context |
 
-Qwen3.6-35B-A3B is a mixture-of-experts model with about 3 billion active parameters per token ([model card](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)). The file size, SHA256, `llama.cpp` build, and serving settings are in [`docs/model-comparison.md`](model-comparison.md). The local model incurs no API token charges. Operating cost was not measured.
+Qwen3.6-35B-A3B is a mixture-of-experts model with about 3 billion active parameters per token ([model card](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)). The file size, SHA256, `llama.cpp` build, and serving settings (temperature 0.6, top-p 0.95, min-p 0, reasoning budget 2048) are in [`docs/model-comparison.md`](model-comparison.md). The local model incurs no API token charges. Operating cost was not measured.
 
 ### Harnesses
 
@@ -33,7 +33,7 @@ Qwen3.6-35B-A3B is a mixture-of-experts model with about 3 billion active parame
 | Hermes Agent | 0.21.7 |
 | OpenClaw | 2026.10.2 |
 | Codex CLI | 0.160.1 |
-| DeepSeek Harness | not recorded |
+| DeepSeek Harness (`dsh`) | 0.2.0-rc.2 |
 
 The wrapper ran in two configurations, with and without its loop. That makes nine configurations per model: 3 models × 9 configurations × 5 tasks × 3 repetitions = 405 runs.
 
@@ -51,18 +51,18 @@ The runner copies the starter files into a temp directory, calls the harness hea
 
 ### The retry loop
 
-After each agent invocation, the wrapper runs a test command. On failure, it starts another invocation with the original task and the filtered failure lines, up to eight invocations. In this benchmark the test command is the grading check, so the loop sees the strongest feedback available. The wrapper can also consult Gemini after the same test fails three times, but that trigger needs named failures (`not ok` or `✖` lines). The Python check emits a traceback, so diagnosis did not fire.
+After each agent invocation, the wrapper runs a test command. On failure, it starts another invocation with the original task and the filtered failure lines (assertion, error, and diff lines), up to eight invocations. In this benchmark the test command is the grading check, so the loop sees the strongest feedback available. The wrapper can also consult Gemini after the same test fails three times, but that trigger needs named failures (`not ok` or `✖` lines). The Python check emits a traceback, so diagnosis did not fire.
 
 ## Results
 
-### Local Qwen: retries against a single pass
+### Wrapper with and without the loop
 
-| Configuration | Passed | Median time | Mean time |
-| --- | --- | --- | --- |
-| Wrapper, no loop | 8/15 | 40 s | 41.1 s |
-| Wrapper, loop | 15/15 | 54 s | 92.8 s |
-| Haiku 5.5, wrapper loop | 15/15 | 8 s | |
-| Luna, wrapper loop | 15/15 | 16 s | |
+| Model | Configuration | Passed | Median time | Mean time |
+| --- | --- | --- | --- | --- |
+| Qwen3.6 | No loop | 8/15 | 40 s | 41.1 s |
+| Qwen3.6 | Loop | 15/15 | 54 s | 92.8 s |
+| Haiku 5.5 | Loop | 15/15 | 8 s | not computed |
+| Luna | Loop | 15/15 | 16 s | not computed |
 
 The median wall time rose from 40 to 54 seconds, but the mean rose from 41.1 to 92.8 seconds. The three loop runs on `merge_intervals` took 133, 179, and 406 seconds. The local model's median in the loop configuration was about 3.4 times Luna's and 6.8 times Haiku's.
 
@@ -70,16 +70,18 @@ The results show that test-guided retries repaired these tasks. They do not sepa
 
 ### Local Qwen: eight harnesses without a loop
 
-| Harness | Passed | Median time |
-| --- | --- | --- |
-| Codex CLI | 12/15 | 76 s |
-| Qwen Code | 12/15 | 86 s |
-| DeepSeek Harness | 11/15 | 75 s |
-| OpenCode | 10/15 | 157 s |
-| Hermes | 10/15 | 44 s |
-| OpenClaw | 9/15 | 147 s |
-| Wrapper, no loop | 8/15 | 40 s |
-| Deep Agents Code | 4/15 | 109 s |
+| Harness | Passed | 95% interval | Median time |
+| --- | --- | --- | --- |
+| Codex CLI | 12/15 | 55 to 93% | 76 s |
+| Qwen Code | 12/15 | 55 to 93% | 86 s |
+| DeepSeek Harness | 11/15 | 48 to 89% | 75 s |
+| OpenCode | 10/15 | 42 to 85% | 157 s |
+| Hermes | 10/15 | 42 to 85% | 44 s |
+| OpenClaw | 9/15 | 36 to 80% | 147 s |
+| Wrapper, no loop | 8/15 | 30 to 75% | 40 s |
+| Deep Agents Code | 4/15 | 11 to 52% | 109 s |
+
+The intervals are Wilson 95% intervals. They overlap for most neighbors, so differences of up to about four passes are within noise at n=15. Only the extremes, Deep Agents Code against the top four, separate clearly.
 
 Across the 120 local no-loop runs, the tasks differ sharply:
 
@@ -95,17 +97,17 @@ Across the 120 local no-loop runs, the tasks differ sharply:
 
 ### A diagnosed failure: `merge_intervals`
 
-Of the 24 failed `merge_intervals` runs, 22 stop at the same assertion: input given as lists, `[[1, 2], [4, 5]]`, must return the tuples `[(1, 2), (4, 5)]`. The other two never produced an importable `intervals` module. The prompt asks for tuples and never shows list input. The logs do not establish which tests each agent ran. A harness that only relays tool calls adds no information the model lacks. A retry that includes the failing assertion does.
+Of the 24 failed `merge_intervals` runs, 22 stop at the same assertion: input given as lists, `[[1, 2], [4, 5]]`, must return the tuples `[(1, 2), (4, 5)]`. The other two never produced an importable `intervals` module. The prompt says to "return a new list of `(start, end)` tuples" and never shows list input. The logs do not establish which tests each agent ran. A harness that only relays tool calls adds no information the model lacks. In the loop, the assertion output exposed the list-input case, and all three runs then passed.
 
 ### Hosted models
 
 Haiku 5.5 and Luna passed 269 of 270 runs. Without the wrapper's loop, they passed 239 of 240. The one failure was Codex CLI on Luna.
 
-Median wall time for Haiku ranged from 6 seconds (wrapper, no loop) to 26 seconds (OpenClaw). The timing includes startup, and its components were not measured.
+Median wall time ranged from 6 seconds (wrapper, no loop) to 26 seconds (OpenClaw) for Haiku, and from 15 seconds (wrapper, no loop) to 34 seconds (OpenClaw) for Luna. The timing includes startup, and its components were not measured.
 
 ## Recommendations
 
-1. **Add a verification step before you change the model.** From the wrapper's 8/15 baseline, grading feedback and retries added seven passes. Switching to either top-scoring no-loop harness added four.
+1. **Add a verification step before you change the model.** From the wrapper's 8/15 baseline, grading feedback and retries added seven passes. Switching to either top-scoring no-loop harness added four. The loop's seven used the grading check itself, so the comparison is not like for like.
 2. **Measure with your own tests.** This benchmark used the grading check as the loop's test command. The effect of ordinary project tests is unmeasured. Evaluate it against separate held-out checks.
 3. **Compare latency when correctness is similar.** Hosted-model pass rates were within one run of each other, so latency and ergonomics are the remaining differences on this suite.
 4. **Test a harness against your serving stack.** Deep Agents Code needed a proxy to repair `llama-server` Responses API output and scored 4/15. The proxy's independent effect was not measured, so treat that score as confounded by the integration.
@@ -123,8 +125,8 @@ Median wall time for Haiku ranged from 6 seconds (wrapper, no loop) to 26 second
 The runner, adapters, tasks, and checks are in the repository. `bench/selftest.sh` checks that each grader rejects the starter and accepts the reference solution. A hosted-model subset:
 
 ```bash
-COLS="A C@luna I" RUNS=3 bench/run.sh
-bench/matrix.sh
+COLS="A C@luna I" RUNS=3 bash bench/run.sh
+bash bench/matrix.sh
 ```
 
 The local comparison, with separate result files:

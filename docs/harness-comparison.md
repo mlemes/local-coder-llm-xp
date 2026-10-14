@@ -34,7 +34,7 @@ The raw table is `bench/matrix.tsv`. Regenerate it with `bench/matrix.sh --tsv >
 | A, B | `claude-local-code` (headless Claude Code, test loop, Gemini diagnosis) | Claude Code 2.1.296 | Haiku (A), local Qwen (B) |
 | C | OpenCode | 1.19.0 | local Qwen |
 | D | Qwen Code | 0.25.1 | local Qwen |
-| E | DeepSeek Harness (`dsh`) | not recorded | local Qwen |
+| E | DeepSeek Harness (`dsh`) | 0.2.0-rc.2 | local Qwen |
 | F | Deep Agents Code (`dcode`) | 0.1.84 | local Qwen |
 | G | Hermes Agent | 0.21.7 | local Qwen |
 | H | OpenClaw | 2026.10.2 | local Qwen |
@@ -57,7 +57,8 @@ Each task has a prompt, a starter tree, a known-good solution, and a hidden chec
 ## How the model reaches each harness
 
 - **Local Qwen:** every harness talks to `llama-server` on `127.0.0.1:8080`. Deep Agents Code goes through `bench/adapters/fix_empty_content.py` because `llama-server` mangles two things in the Responses API: empty reasoning items, and tool arguments that land in the reasoning item.
-- **Haiku and Luna:** Qwen Code on Luna also goes through the proxy, which renames `max_tokens` and turns reasoning off. The harnesses use the vendor API with keys from `bench/.keys.env`. Codex CLI on Haiku and `claude-local-code` on Luna go through a local LiteLLM proxy (`bench/adapters/_litellm.sh`) that translates the Responses and Messages protocols.
+- **Haiku and Luna:** the harnesses use the vendor API with keys from `bench/.keys.env`. Codex CLI on Haiku and `claude-local-code` on Luna go through a local LiteLLM proxy (`bench/adapters/_litellm.sh`) that translates the Responses and Messages protocols.
+- **Qwen Code on Luna:** goes through `fix_empty_content.py`, which renames `max_tokens` and turns reasoning off, because OpenAI rejects `reasoning_effort` together with tools.
 - **Luna on Codex CLI:** this cell uses the ChatGPT login, not an API key.
 - **Anthropic subscription tokens:** Anthropic bars them in third-party harnesses. Only `claude-local-code`, which runs the official `claude` binary, uses the subscription. Every other Haiku cell uses an API key.
 
